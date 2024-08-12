@@ -1,0 +1,1 @@
+Auto install MGR readme
