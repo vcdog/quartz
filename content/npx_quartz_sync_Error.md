@@ -50,3 +50,22 @@ An error occurred above while pushing to remote origin.
 ```bash
 git push origin v4
 ```
+
+# 或使用windows命令提交
+
+```cmd
+D:\quart_git_vlog\quartz>npx quartz sync --no-pull
+
+ Quartz v4.3.0
+
+Backing up your content
+(node:31180) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+On branch v4
+nothing to commit, working tree clean
+Pushing your changes
+Everything up-to-date
+branch 'v4' set up to track 'origin/v4'.
+[32mDone![39m
+
+```
