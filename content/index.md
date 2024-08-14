@@ -1,7 +1,7 @@
 ---
-title: Welcome to Quartz
-tags: Quartz
-
+title: 欢迎来到Kevin数字花园
+tags:
+  - Quartz
 ---
 
 - [[auto_install_mgr.md]]
