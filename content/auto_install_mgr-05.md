@@ -1,4 +1,4 @@
-## Auto install MGR readme.
+## Auto install MGR Readme.
 
 # 架构图1：
 
