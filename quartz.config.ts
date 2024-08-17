@@ -8,16 +8,16 @@ import * as Plugin from "./quartz/plugins"
  */
 const config: QuartzConfig = {
   configuration: {
-    pageTitle: "🪴 Kevin数字花园",
-    enableSPA: true,
-    enablePopovers: true,
-    analytics: {
-      provider: "plausible",
-    },
-    locale: "zh-CN",
-    baseUrl: "quartz.jzhao.xyz",
-    ignorePatterns: ["private", "templates", ".obsidian"],
-    defaultDateType: "created",
+         pageTitle: "🪴Kevin🍀数字花园🌱",
+      enableSPA: true,
+      enablePopovers: true,
+      analytics: {
+        provider: "plausible",
+      },
+      locale: "zh-CN",
+      baseUrl: "quartz.iftballs.com",
+      ignorePatterns: ["private", "templates", ".obsidian"],
+      defaultDateType: "created",
     theme: {
       fontOrigin: "googleFonts",
       cdnCaching: true,
