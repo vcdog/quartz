@@ -1,0 +1,6 @@
+- [[auto_install_mgr-01]]
+- [[auto_install_mgr-02]]
+- [[auto_install_mgr-03]]
+- [[auto_install_mgr-04]]
+- [[auto_install_mgr-05]]
+- [[auto_install_mgr-06]]
