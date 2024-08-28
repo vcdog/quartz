@@ -328,7 +328,16 @@ export PGUSER=postgres
 export PGDATABASE=postgres  
 ```
 
-  
+##  环境变量最好放在全局配置文件/etc/profile中
+
+否则，在启动服务时，可能会遇到如下问题：
+  ```js
+
+  Aug 28 16:06:21 wtj1vpk8sql01 patroni: FATAL: Patroni requires psycopg2>=2.5.4, psycopg2-binary, or psycopg>=3.0.0
+Aug 28 16:06:21 wtj1vpk8sql01 systemd: patroni.service: main process exited, code=exited, status=1/FAILURE
+Aug 28 16:06:21 wtj1vpk8sql01 systemd: Unit patroni.service entered failed state.
+Aug 28 16:06:21 wtj1vpk8sql01 systemd: patroni.service failed.
+```
 
 ## 创建pg16软件安装目录
 
