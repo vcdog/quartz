@@ -30,3 +30,19 @@ Write-ahead log reset
 
 ### 重新启动pg
 
+
+### 查看日志
+
+```bash
+[postgres@wtj1vpk8sql02 log]$ tail -f postgresql-2024-08-29_175355.log
+2024-08-29 17:53:55.301 CST [15088] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2024-08-29 17:53:55.302 CST [15094] LOG:  database system was interrupted while in recovery at log time 2024-08-29 17:52:12 CST
+2024-08-29 17:53:55.302 CST [15094] HINT:  If this has occurred more than once some data might be corrupted and you might need to choose an earlier recovery target.
+2024-08-29 17:53:55.310 CST [15094] LOG:  entering standby mode
+2024-08-29 17:53:55.311 CST [15094] FATAL:  WAL was generated with wal_level=minimal, cannot continue recovering
+2024-08-29 17:53:55.311 CST [15094] DETAIL:  This happens if you temporarily set wal_level=minimal on the server.
+2024-08-29 17:53:55.311 CST [15094] HINT:  Use a backup taken after setting wal_level to higher than minimal.
+2024-08-29 17:53:55.311 CST [15088] LOG:  startup process (PID 15094) exited with exit code 1
+2024-08-29 17:53:55.311 CST [15088] LOG:  aborting startup due to startup process failure
+2024-08-29 17:53:55.312 CST [15088] LOG:  database system is shut down
+```
