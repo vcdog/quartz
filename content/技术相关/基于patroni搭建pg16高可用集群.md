@@ -496,7 +496,7 @@ systemctl daemon-reload
   
 
 ```Plain
-# 不同节点需要修改对应的IP信息，以及开头的name信息
+# **不同节点需要修改对应的IP信息，以及开头的name信息**
 node1:
 # root用户执行
 mkdir -p /etc/patroni
@@ -560,7 +560,7 @@ postgresql:
   authentication:
     replication:
       username: repuser
-      password: 123456
+      password: '123456'
     superuser:
       username: postgres
       password: postgres
@@ -583,6 +583,7 @@ tags:
    noloadbalance: false
    clonefrom: false
    nosync: false
+
    
 # node2修改:
 name: pg02
@@ -604,6 +605,11 @@ postgresql:
   listen: 172.17.44.157:5432
   connect_address: 172.17.44.157:5432  
 ```
+
+
+### 注意：
+- 第一次启动初始化失败后，再次启动无法重新初始化，需要删除/acdata/data/pg16/data下的所有文件，以及更换namespace: /pgsql/为新的名称，如：namespace: /pgsql16/
+- 再重新启动，进行初始化操作即可成功
 
   
 
@@ -688,26 +694,62 @@ systemctl start patroni
 
   
 
-```Plain
+```bash
 patronictl -c /etc/patroni/patroni.yml list
 
-[root@node3 pg16]# patronictl -c /etc/patroni/patroni.yml list
-+ Cluster: pgsql16 (7376595871806153493) -----+-----------+----+-----------+
-| Member | Host                | Role         | State     | TL | Lag in MB |
-+--------+---------------------+--------------+-----------+----+-----------+
-| pg01   | 172.17.44.155:5432 | Leader       | running   |  7 |           |
-| pg02   | 172.17.44.156:5432 | Sync Standby | streaming |  7 |         0 |
-| pg03   | 172.17.44.157:5432 | Replica      | streaming |  7 |         0 |
-+--------+---------------------+--------------+-----------+----+-----------+
+[root@wtj1vpk8sql01 ~]# patronictl -c /etc/patroni/patroni.yml list
++ Cluster: pgsql16 (7408451029595073953) -----------+----+-----------+
+| Member | Host          | Role         | State     | TL | Lag in MB |
++--------+---------------+--------------+-----------+----+-----------+
+| pg01   | 172.17.44.155 | Leader       | running   |  1 |           |
+| pg02   | 172.17.44.156 | Replica      | running   |  1 |        16 |
+| pg03   | 172.17.44.157 | Sync Standby | streaming |  1 |         0 |
++--------+---------------+--------------+-----------+----+-----------+
 ```
 
-  
+### 主节点pg01上的启动日志：
+
+```bash
+024-08-29 15:08:59,731 INFO: no action. I am (pg01), the leader with the lock
+2024-08-29 15:09:00,731 INFO: no action. I am (pg01), the leader with the lock
+2024-08-29 15:09:01,731 INFO: no action. I am (pg01), the leader with the lock
+2024-08-29 15:09:02,731 INFO: no action. I am (pg01), the leader with the lock
+2024-08-29 15:09:03,733 INFO: no action. I am (pg01), the leader with the lock
+2024-08-29 15:09:04,731 INFO: no action. I am (pg01), the leader with the lock
+```
+### 从节点pg02和pg03上的启动日志：
+
+```bash
+
+**pg02节点：**
+
+2024-08-29 15:12:52,706 INFO: no action. I am (pg02), a secondary, and following a leader (pg01)
+2024-08-29 15:12:54,687 INFO: no action. I am (pg02), a secondary, and following a leader (pg01)
+2024-08-29 15:12:54,688 WARNING: Loop time exceeded, rescheduling immediately.
+2024-08-29 15:12:54,689 INFO: no action. I am (pg02), a secondary, and following a leader (pg01)
+2024-08-29 15:12:56,230 INFO: no action. I am (pg02), a secondary, and following a leader (pg01)
+2024-08-29 15:12:57,189 INFO: no action. I am (pg02), a secondary, and following a leader (pg01)
+2024-08-29 15:12:58,231 INFO: no action. I am (pg02), a secondary, and following a leader (pg01)
+
+
+**pg03节点：**
+2024-08-29 15:13:10,318 INFO: no action. I am (pg03), a secondary, and following a leader (pg01)
+2024-08-29 15:13:11,276 INFO: no action. I am (pg03), a secondary, and following a leader (pg01)
+2024-08-29 15:13:12,319 INFO: no action. I am (pg03), a secondary, and following a leader (pg01)
+2024-08-29 15:13:13,277 INFO: no action. I am (pg03), a secondary, and following a leader (pg01)
+2024-08-29 15:13:14,319 INFO: no action. I am (pg03), a secondary, and following a leader (pg01)
+2024-08-29 15:13:15,277 INFO: no action. I am (pg03), a secondary, and following a leader (pg01)
+2024-08-29 15:13:15,912 INFO: no action. I am (pg03), a secondary, and following a leader (pg01)
+
+```
 
 # 主节点node1上查看复制状态
 
   
 
 ```Plain
+# psql
+
 postgres=# select * from pg_stat_replication;
   pid  | usesysid | usename | application_name |  client_addr   | client_hostname | client_port |         backend_start         | backend_xmin |   state   | 
 sent_lsn  | write_lsn | flush_lsn | replay_lsn | write_lag | flush_lag | replay_lag | sync_priority | sync_state |          reply_time           
@@ -854,6 +896,21 @@ patronictl list报错
 解决办法：增加/etc/patroni/patroni.yml中retry_timeout的值
 ```
 
+## 模拟pg02的pg故障，发现无法正常启动
+
+```bash
+[root@wtj1vpk8sql02 log]# tail -f postgresql-2024-08-29_163804.log
+2024-08-29 16:38:04.850 CST [11829] LOG:  starting PostgreSQL 16.3 [By gg] on x86_64-pc-linux-gnu, compiled by gcc (GCC) 4.8.5 20150623 (Red Hat 4.8.5-44), 64-bit
+2024-08-29 16:38:04.850 CST [11829] LOG:  listening on IPv4 address "172.17.44.156", port 5432
+2024-08-29 16:38:04.879 CST [11829] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2024-08-29 16:38:04.881 CST [11834] LOG:  database system was shut down in recovery at 2024-08-29 16:03:01 CST
+2024-08-29 16:38:04.881 CST [11834] LOG:  entering standby mode
+2024-08-29 16:38:04.881 CST [11834] LOG:  invalid resource manager ID in checkpoint record
+2024-08-29 16:38:04.881 CST [11834] PANIC:  could not locate a valid checkpoint record
+2024-08-29 16:38:04.897 CST [11829] LOG:  startup process (PID 11834) was terminated by signal 6: Aborted
+2024-08-29 16:38:04.897 CST [11829] LOG:  aborting startup due to startup process failure
+2024-08-29 16:38:04.898 CST [11829] LOG:  database system is shut down
+```
   
 
 # 参考文档
