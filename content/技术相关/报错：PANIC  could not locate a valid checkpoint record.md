@@ -111,4 +111,32 @@ Write-ahead log reset
 2024-08-29 17:53:55.311 CST [15088] LOG:  startup process (PID 15094) exited with exit code 1
 2024-08-29 17:53:55.311 CST [15088] LOG:  aborting startup due to startup process failure
 2024-08-29 17:53:55.312 CST [15088] LOG:  database system is shut down
+
+
+
+2024-08-29 17:58:16.941 CST [16191] LOG:  starting PostgreSQL 16.3 [By gg] on x86_64-pc-linux-gnu, compiled by gcc (GCC) 4.8.5 20150623 (Red Hat 4.8.5-44), 64-bit
+2024-08-29 17:58:16.941 CST [16191] LOG:  listening on IPv4 address "172.17.44.156", port 5432
+2024-08-29 17:58:16.941 CST [16191] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2024-08-29 17:58:16.943 CST [16195] LOG:  database system was interrupted while in recovery at log time 2024-08-29 17:52:12 CST
+2024-08-29 17:58:16.943 CST [16195] HINT:  If this has occurred more than once some data might be corrupted and you might need to choose an earlier recovery target.
+2024-08-29 17:58:16.954 CST [16195] LOG:  entering standby mode
+2024-08-29 17:58:16.955 CST [16195] FATAL:  WAL was generated with wal_level=minimal, cannot continue recovering
+2024-08-29 17:58:16.955 CST [16195] DETAIL:  This happens if you temporarily set wal_level=minimal on the server.
+2024-08-29 17:58:16.955 CST [16195] HINT:  Use a backup taken after setting wal_level to higher than minimal.
+2024-08-29 17:58:16.955 CST [16191] LOG:  startup process (PID 16195) exited with exit code 1
+2024-08-29 17:58:16.955 CST [16191] LOG:  aborting startup due to startup process failure
+2024-08-29 17:58:16.955 CST [16191] LOG:  database system is shut down
 ```
+
+### 查看3个pg节点服务器的时间同步
+
+```bash
+[root@wtj1vpk8sql04 ~]#  for i in {155..157};do ssh 172.17.44.$i "hostname;date";done
+wtj1vpk8sql01
+Thu Aug 29 18:06:56 CST 2024
+wtj1vpk8sql02
+Thu Aug 29 18:06:56 CST 2024
+wtj1vpk8sql03
+Thu Aug 29 18:06:56 CST 2024
+```
+
