@@ -140,3 +140,190 @@ wtj1vpk8sql03
 Thu Aug 29 18:06:56 CST 2024
 ```
 
+
+通过日志内容`2024-08-29 17:53:55.311 CST [15094] FATAL:  WAL was generated with wal_level=minimal, cannot continue recovering`，不难发现问题出现wal_level=minimal。
+集群中配置的wal_level=replica并没有生效。
+
+### 解决办法：（修改配置文件/etc/patroni/patroni.yml）
+
+
+```bash
+[root@wtj1vpk8sql02 ~]# cat /etc/patroni/patroni.yml 
+scope: pgsql16
+#namespace: /pgsql/
+namespace: /pgsql16/
+name: pg02
+
+restapi:
+  listen: 0.0.0.0:8008
+  connect_address: 172.17.44.156:8008
+
+etcd3:
+  hosts: 172.17.44.155:2379,172.17.44.156:2379,172.17.44.157:2379
+
+bootstrap:
+ # this section will be written into Etcd:/<namespace>/<scope>/config after initializing new cluster and all other cluster members will use it as a `global configuration`
+  dcs:
+    ttl: 30
+    loop_wait: 10
+    retry_timeout: 30
+    maximum_lag_on_failover: 1048576
+    master_start_timeout: 300
+    synchronous_mode: true
+    postgresql:
+      use_pg_rewind: true
+      use_slots: true
+      parameters:
+        listen_addresses: "*"
+        port: 5432
+        wal_level: "replica"
+        hot_standby: "on"
+        wal_keep_segments: 1000
+        max_wal_senders: 10
+        max_replication_slots: 10
+        wal_log_hints: "on"
+        logging_collector: "on"
+#        archive_mode: "on"
+#        archive_timeout: 1800s
+#        archive_command: cp %p /acdata/backup/pgwalarchive/%f
+#      recovery_conf:
+#        restore_command: cp /acdata/backup/pgwalarchive/%f %p
+
+  initdb:
+   - encoding: UTF8
+   - locale: C
+   - lc-ctype: zh_CN.UTF-8
+   - data-checksums
+
+#  pg_hba:
+#   - host replication repuser 172.17.44.0/21 md5
+#   - host all all 172.17.0.0/16 md5
+
+  pg_hba:
+  - host replication repuser 0.0.0.0/0 md5
+  - host all all 0.0.0.0/0 md5
+
+  users:
+      admin:
+          password: admin
+          options:
+                - createrole
+                - createdb
+
+postgresql:
+  listen: 172.17.44.156:5432
+  connect_address: 172.17.44.156:5432
+  data_dir: /acdata/data/pg16/data
+  bin_dir: /acdata/data/pg16/pgsoft/bin
+
+  authentication:
+    replication:
+      username: repuser
+      password: '123456'
+    superuser:
+      username: postgres
+      password: postgres
+
+basebackup:
+    max-rate: 100M
+    checkpoint: fast
+
+#callbacks:
+#    on_start: /etc/patroni/patroni_callback.sh
+#    on_stop:  /etc/patroni/patroni_callback.sh
+#    on_role_change: /etc/patroni/patroni_callback.sh
+#
+#watchdog:
+#  mode: automatic       # Allowed values: off, automatic, required
+#  device: /dev/watchdog
+#  safety_margin: 5
+
+tags:
+   nofailover: false
+   noloadbalance: false
+   clonefrom: false
+   nosync: false
+```
+
+
+### 参数设置如下：
+
+```bash
+wal_level: "replica"
+```
+
+
+## 再次重启pg02
+```bash
+patroni /etc/patroni/patroni.yml
+```
+
+## 查看集群状态
+
+```bash
+[root@wtj1vpk8sql01 ~]# patronictl -c /etc/patroni/patroni.yml list
++ Cluster: pgsql16 (7408451029595073953) -----------+----+-----------+
+| Member | Host          | Role         | State     | TL | Lag in MB |
++--------+---------------+--------------+-----------+----+-----------+
+| pg01   | 172.17.44.155 | Sync Standby | streaming |  2 |         0 |
+| pg02   | 172.17.44.156 | Replica      | running   |  1 |         0 |
+| pg03   | 172.17.44.157 | Leader       | running   |  2 |           |
++--------+---------------+--------------+-----------+----+-----------+
+
+```
+
+
+在PostgreSQL中，`wal_level` 是一个非常重要的配置参数，用于控制写前日志（WAL）的详细程度。它影响数据库在数据恢复、复制、备份等方面的能力。根据不同的应用场景，可以设置不同的 `wal_level`。
+
+### 可用的 `wal_level` 值
+
+PostgreSQL 16中，`wal_level` 有三个主要的可选值：
+
+1. **`minimal`**：
+    
+    - 只记录最少的WAL信息，主要用于灾难恢复。
+    - 适用于不需要流复制、逻辑复制或PITR（Point-In-Time Recovery）的情况。
+    - 使用这种设置会有最低的WAL开销，但会限制高可用性和备份恢复的选项。
+2. **`replica`**：
+    
+    - 记录的WAL信息足够支持流复制和备份（PITR）。
+    - 这是大多数生产环境的推荐设置，因为它提供了足够的信息用于物理复制（即主从复制）。
+    - 这也是PostgreSQL 9.6及以后版本的默认值。
+3. **`logical`**：
+    
+    - 在 `replica` 的基础上增加了更多的WAL信息，以支持逻辑复制。
+    - 适用于需要逻辑复制（即表级别或行级别的复制），或者需要基于触发器、数据变更捕获的场景。
+    - 逻辑复制允许将数据从PostgreSQL流式传输到不同的目标，包括不同的PostgreSQL实例或其他系统。
+
+### 配置和修改 `wal_level`
+
+你可以在 `postgresql.conf` 配置文件中设置 `wal_level` 参数，也可以通过运行SQL命令在会话中查看当前的 `wal_level` 值：
+
+```sql
+SHOW wal_level;
+```
+
+要更改 `wal_level`，需要编辑 `postgresql.conf` 文件：
+
+`wal_level = replica`
+
+在修改后，需要重启PostgreSQL服务使更改生效：
+
+`sudo systemctl restart postgresql`
+
+### `wal_level` 的选择建议
+
+- **使用`minimal`**：当你只关心简单的数据恢复而不需要任何形式的复制时（例如在开发环境中），可以选择`minimal`来减少磁盘I/O。
+    
+- **使用`replica`**：适用于大多数生产环境，尤其是需要流复制、备份恢复的场景。
+    
+- **使用`logical`**：当你需要逻辑复制或需要与外部系统集成的场景下，选择`logical`。
+    
+
+### 相关参数
+
+- **`max_wal_senders`**：这个参数指定了允许多少个并发的WAL发送器进程，它在启用流复制时非常重要。
+- **`max_replication_slots`**：指定了最大复制槽的数量，尤其在使用逻辑复制时非常重要。
+- **`wal_keep_size`**：设置要保留的WAL日志的大小，以防止在从节点滞后时主节点删除这些WAL。
+
+通过合理配置`wal_level`，可以有效平衡数据库的性能和数据复制/恢复功能。

@@ -928,6 +928,33 @@ Last login: Thu Aug 29 16:31:14 CST 2024 on pts/0
 Write-ahead log reset
 ```
 
+通过日志内容`2024-08-29 17:53:55.311 CST [15094] FATAL:  WAL was generated with wal_level=minimal, cannot continue recovering`，不难发现问题出现wal_level=minimal。
+集群中配置的wal_level=replica并没有生效。
+
+### 参数设置如下：
+
+```bash
+wal_level: "replica"
+```
+
+
+## 再次重启pg02
+```bash
+patroni /etc/patroni/patroni.yml
+```
+
+## 查看集群状态
+
+```bash
+[root@wtj1vpk8sql01 ~]# patronictl -c /etc/patroni/patroni.yml list
++ Cluster: pgsql16 (7408451029595073953) -----------+----+-----------+
+| Member | Host          | Role         | State     | TL | Lag in MB |
++--------+---------------+--------------+-----------+----+-----------+
+| pg01   | 172.17.44.155 | Sync Standby | streaming |  2 |         0 |
+| pg02   | 172.17.44.156 | Replica      | running   |  1 |         0 |
+| pg03   | 172.17.44.157 | Leader       | running   |  2 |           |
++--------+---------------+--------------+-----------+----+-----------+
+```
 
 
 # 参考文档
@@ -939,9 +966,3 @@ https://patroni.readthedocs.io/en/latest/README.html
 https://blog.csdn.net/lsx_3/article/details/131072594
 
   
-
-# 总结
-
-  
-
-整个安装、测试过程还是非常丝滑顺利的~
