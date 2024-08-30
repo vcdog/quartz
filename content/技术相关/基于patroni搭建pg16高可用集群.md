@@ -38,21 +38,38 @@ etcd完整的cluster（集群）至少有三台，这样才能选举出一个mas
 
 # 环境说明
 
-  
 
-|   |   |   |   |   |
-|---|---|---|---|---|
-|主机名|ip地址|OS版本|内存、CPU|数据库端口|
-|node1|172.17.44.155|Centos7.9|8C16G200G|5432|
-|node2|172.17.44.156|Centos7.9|8C16G200G|5432|
-|node3|172.17.44.157|Centos7.9|8C16G200G|5432|
-|pgw+keepalived|172.17.44.158|Centos7.9|4C8G200G|5432|
-
-  
+| 主机名   | ip地址          | OS版本      | 内存、CPU    | 数据库端口     | 部署组件         |
+| ----- | ------------- | --------- | --------- | --------- | ------------ |
+| node1 | 172.17.44.155 | Centos7.9 | 8C16G200G | 8008,5432 | patroni+pg01 |
+| node2 | 172.17.44.156 | Centos7.9 | 8C16G200G | 8008,5432 | patroni+pg02 |
+| node3 | 172.17.44.157 | Centos7.9 | 8C16G200G | 8008,5432 | patroni+pg03 |
+| node4 | 172.17.44.158 | Centos7.9 | 4C8G200G  | 2379      | etcd-01      |
+| node5 | 172.17.44.68  | Centos7.9 | 4C8G200G  | 2379      | etcd-02      |
+| node6 | 172.17.44.68  | Centos7.9 | 4C8G200G  | 2379      | etcd-03      |
 
 **vip：172.17.44.159**
 
-  
+## 添加hosts解析
+
+>**node1~node6上操作**
+
+```bash
+[root@wtj1vpk8sql04 pg_cluster_source]# vim /etc/hosts
+127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4
+::1         localhost localhost.localdomain localhost6 localhost6.localdomain6
+172.17.44.155 pg01
+172.17.44.156 pg02
+172.17.44.157 pg03
+172.17.44.158 etcd01 
+172.17.44.68 etcd02 
+172.17.44.69 etcd03
+```
+ 
+## 注意：
+
+>防止避免出现pg服务挂掉时，重启服务器，引起etcd服务的意外，建议服务器资源富余的情况下，优先考虑单独分开部署方案。
+
 
 # Etcd部署
 
@@ -66,7 +83,7 @@ etcd完整的cluster（集群）至少有三台，这样才能选举出一个mas
 cd /soft/
 tar -zxvf etcd-v3.5.13-linux-amd64.tar.gz
 cd /soft/etcd-v3.5.13-linux-amd64
-cp etcd /usr/bin
+cp -r etcd* /usr/bin
 cp etcdctl /usr/bin
 
 --查看版本
@@ -85,71 +102,79 @@ API version: 3.3
 
   
 
-node1:
+### node4节点操作如下:
 
   
 
-```Plain
+```bash
 mkdir -p /etc/etcd/
 mkdir -p /acdata/data/etcd/
+
 vi /etc/etcd/etcd.conf
 name: etcd-1
 data-dir: /acdata/data/etcd/
-listen-client-urls: http://172.17.44.155:2379,http://127.0.0.1:2379
-advertise-client-urls: http://172.17.44.155:2379,http://127.0.0.1:2379
-listen-peer-urls: http://172.17.44.155:2380
-initial-advertise-peer-urls: http://172.17.44.155:2380
-initial-cluster: etcd-1=http://172.17.44.155:2380,etcd-2=http://172.17.44.156:2380,etcd-3=http://172.17.44.157:2380
+listen-client-urls: http://172.17.44.158:2379
+advertise-client-urls: http://172.17.44.158:2379
+listen-peer-urls: http://172.17.44.158:2380
+initial-advertise-peer-urls: http://172.17.44.158:2380
+initial-cluster: "etcd-1=http://172.17.44.158:2380,etcd-2=http://172.17.44.68:2380,etcd-3=http://172.17.44.69:2380"
 initial-cluster-token: etcd-cluster
 initial-cluster-state: new
 ```
 
   
 
-node2:
+### node5节点操作如下:
 
   
 
-```Plain
+```bash
 mkdir -p /etc/etcd/
 mkdir -p /acdata/data/etcd/
+
 vi /etc/etcd/etcd.conf
+
 name: etcd-2
 data-dir: /acdata/data/etcd/
-listen-client-urls: http://172.17.44.156:2379,http://127.0.0.1:2379
-advertise-client-urls: http://172.17.44.156:2379,http://127.0.0.1:2379
-listen-peer-urls: http://172.17.44.156:2380
-initial-advertise-peer-urls: http://172.17.44.156:2380
-initial-cluster: etcd-1=http://172.17.44.155:2380,etcd-2=http://172.17.44.156:2380,etcd-3=http://172.17.44.157:2380
+listen-client-urls: http://172.17.44.68:2379
+advertise-client-urls: http://172.17.44.68:2379
+listen-peer-urls: http://172.17.44.68:2380
+initial-advertise-peer-urls: http://172.17.44.68:2380
+initial-cluster: "etcd-1=http://172.17.44.158:2380,etcd-2=http://172.17.44.68:2380,etcd-3=http://172.17.44.69:2380"
 initial-cluster-token: etcd-cluster
 initial-cluster-state: new
+
 ```
 
   
 
-node3:
+### node6节点操作如下:
 
   
 
-```Plain
+```bash
 mkdir -p /etc/etcd/
 mkdir -p /acdata/data/etcd/
-/etc/etcd/etcd.conf
+vim /etc/etcd/etcd.conf
+
 name: etcd-3
 data-dir: /acdata/data/etcd/
-listen-client-urls: http://172.17.44.157:2379,http://127.0.0.1:2379
-advertise-client-urls: http://172.17.44.157:2379,http://127.0.0.1:2379
-listen-peer-urls: http://172.17.44.157:2380
-initial-advertise-peer-urls: http://172.17.44.157:2380
-initial-cluster: etcd-1=http://172.17.44.155:2380,etcd-2=http://172.17.44.156:2380,etcd-3=http://172.17.44.157:2380
+listen-client-urls: http://172.17.44.69:2379
+advertise-client-urls: http://172.17.44.69:2379
+listen-peer-urls: http://172.17.44.69:2380
+initial-advertise-peer-urls: http://172.17.44.69:2380
+initial-cluster: "etcd-1=http://172.17.44.158:2380,etcd-2=http://172.17.44.68:2380,etcd-3=http://172.17.44.69:2380"
 initial-cluster-token: etcd-cluster
 initial-cluster-state: new
+
 ```
 
   
 
-## 配置etcd service
+## 配置etcd service 
 
+>**node4,node5,node6上操作**
+>
   
 
 ```Plain
@@ -173,9 +198,9 @@ LimitNOFILE=65536
 
 ## 管理etcd集群
 
-  
+  >**node4,node5,node6上操作**
 
-```Plain
+```bash
 systemctl daemon-reload
 systemctl restart etcd
 systemctl status etcd
@@ -186,38 +211,44 @@ systemctl enable etcd
 
 ## 查看etcd集群的状态
 
-  
+   >**node4,node5,node6上任意一个节点上操作** 
+### 查看etcd服务状态
 
-```Plain
---查看etcd服务状态
-[root@node1 soft]# systemctl status etcd
+```bash
+
+[root@wtj1vpk8sql04 pg_cluster_source]# systemctl status etcd
 ● etcd.service - Etcd Server
-   Loaded: loaded (/usr/lib/systemd/system/etcd.service; enabled; vendor preset: disabled)
-   Active: active (running) since Wed 2024-05-29 19:59:13 CST; 6s ago
- Main PID: 2792 (etcd)
-    Tasks: 9
+   Loaded: loaded (/usr/lib/systemd/system/etcd.service; static; vendor preset: disabled)
+   Active: active (running) since Fri 2024-08-30 17:14:19 CST; 8min ago
+ Main PID: 24372 (etcd)
    CGroup: /system.slice/etcd.service
-           └─2792 /usr/bin/etcd --config-file=/etc/etcd/etcd.conf
+           └─24372 /usr/bin/etcd --config-file=/etc/etcd/etcd.conf
 
-May 29 19:59:13 node1 etcd[2792]: ready to serve client requests
-May 29 19:59:13 node1 etcd[2792]: serving insecure client requests on 127.0.0.1:2379, this is strongly discouraged!
-May 29 19:59:13 node1 etcd[2792]: ready to serve client requests
-May 29 19:59:13 node1 etcd[2792]: serving insecure client requests on 172.17.44.155:2379, this is strongly discouraged!
-May 29 19:59:13 node1 systemd[1]: Started Etcd Server.
-May 29 19:59:13 node1 etcd[2792]: established a TCP streaming connection with peer cd4811b8f06b87 (stream MsgApp v2 writer)
-May 29 19:59:13 node1 etcd[2792]: established a TCP streaming connection with peer cd4811b8f06b87 (stream Message writer)
-May 29 19:59:13 node1 etcd[2792]: 8530747d0edb6666 initialzed peer connection; fast-forwarding 8 ticks (election ticks 10) with 2 active peer(s)
-May 29 19:59:14 node1 etcd[2792]: updated the cluster version from 3.0 to 3.3
-May 29 19:59:14 node1 etcd[2792]: enabled capabilities for version 3.3
+Aug 30 17:17:57 wtj1vpk8sql04 etcd[24372]: {"level":"warn","ts":"2024-08-30T17:17:57.869982+0800","caller":"rafthtt...
+Aug 30 17:17:58 wtj1vpk8sql04 etcd[24372]: {"level":"warn","ts":"2024-08-30T17:17:58.172218+0800","caller":"ra...3d8"}
+Aug 30 17:17:58 wtj1vpk8sql04 etcd[24372]: {"level":"info","ts":"2024-08-30T17:17:58.913844+0800","caller":"ra...age"}
+Aug 30 17:17:58 wtj1vpk8sql04 etcd[24372]: {"level":"info","ts":"2024-08-30T17:17:58.913889+0800","caller":"ra...3d8"}
+Aug 30 17:17:58 wtj1vpk8sql04 etcd[24372]: {"level":"info","ts":"2024-08-30T17:17:58.913905+0800","caller":"ra...3d8"}
+Aug 30 17:17:58 wtj1vpk8sql04 etcd[24372]: {"level":"info","ts":"2024-08-30T17:17:58.917337+0800","caller":"ra... v2"}
+Aug 30 17:17:58 wtj1vpk8sql04 etcd[24372]: {"level":"warn","ts":"2024-08-30T17:17:58.917360+0800","caller":"ra...3d8"}
+Aug 30 17:17:58 wtj1vpk8sql04 etcd[24372]: {"level":"info","ts":"2024-08-30T17:17:58.917370+0800","caller":"ra...3d8"}
+Aug 30 17:17:58 wtj1vpk8sql04 etcd[24372]: {"level":"info","ts":"2024-08-30T17:17:58.970290+0800","caller":"ra...3d8"}
+Aug 30 17:17:58 wtj1vpk8sql04 etcd[24372]: {"level":"info","ts":"2024-08-30T17:17:58.970415+0800","caller":"ra...3d8"}
 
---查看集群状态
-[root@wtj1vpk8sql01 ~]# etcdctl  --endpoints=172.17.44.155:2379,172.17.44.156:2379,172.17.44.157:2379 endpoint status -w table
+
+```
+
+### 查看集群状态
+
+```bash
+
+[root@node4 pg_cluster_source]# etcdctl  --endpoints=172.17.44.158:2379,172.17.44.68:2379,172.17.44.69:2379 endpoint status -w table
 +--------------------+------------------+---------+---------+-----------+------------+-----------+------------+--------------------+--------+
 |      ENDPOINT      |        ID        | VERSION | DB SIZE | IS LEADER | IS LEARNER | RAFT TERM | RAFT INDEX | RAFT APPLIED INDEX | ERRORS |
 +--------------------+------------------+---------+---------+-----------+------------+-----------+------------+--------------------+--------+
-| 172.17.44.155:2379 | a06f5cdc3087e5ea |  3.5.15 |   20 kB |     false |      false |         5 |         15 |                 15 |        |
-| 172.17.44.156:2379 | bed073fe9333880e |  3.5.15 |   20 kB |      true |      false |         5 |         15 |                 15 |        |
-| 172.17.44.157:2379 | 116da65d9b8fc137 |  3.5.15 |   20 kB |     false |      false |         5 |         15 |                 15 |        |
+| 172.17.44.158:2379 | 8ae877675b454848 |  3.5.15 |   90 kB |      true |      false |         5 |        230 |                230 |        |
+|  172.17.44.68:2379 | 1ddf9fc3680e97d7 |  3.5.15 |   90 kB |     false |      false |         5 |        230 |                230 |        |
+|  172.17.44.69:2379 | 9b775eb3953be3d8 |  3.5.15 |   90 kB |     false |      false |         5 |        230 |                230 |        |
 +--------------------+------------------+---------+---------+-----------+------------+-----------+------------+--------------------+--------+
 ```
 
@@ -669,7 +700,7 @@ EOF
   
 
 ```Plain
-chmod +x /etc/patroni/patroni_callback.sh
+chmod +x /etc/patroni/patroni_callback.shcd  
 chown postgres:postgres /etc/patroni/patroni_callback.sh
 ```
 
