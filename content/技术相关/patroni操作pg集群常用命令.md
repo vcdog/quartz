@@ -1,0 +1,255 @@
+
+# 可以查看命令的使用说明
+
+patronictl –help
+
+```bash
+
+[root@wtj1vpk8sql02 ~]# patronictl –help
+Usage: patronictl [OPTIONS] COMMAND [ARGS]...
+
+  Command-line interface for interacting with Patroni.
+
+Options:
+  -c, --config-file TEXT     Configuration file
+  -d, --dcs-url, --dcs TEXT  The DCS connect url
+  -k, --insecure             Allow connections to SSL sites without certs
+  --help                     Show this message and exit.
+
+Commands:
+  dsn          Generate a dsn for the provided member, defaults to a dsn...
+  edit-config  Edit cluster configuration
+  failover     Failover to a replica
+  flush        Discard scheduled events
+  history      Show the history of failovers/switchovers
+  list         List the Patroni members for a given Patroni
+  pause        Disable auto failover
+  query        Query a Patroni PostgreSQL member
+  reinit       Reinitialize cluster member
+  reload       Reload cluster member configuration
+  remove       Remove cluster from DCS
+  restart      Restart cluster member
+  resume       Resume auto failover
+  show-config  Show cluster configuration
+  switchover   Switchover to a replica
+  topology     Prints ASCII topology for given cluster
+  version      Output version of patronictl command or a running Patroni...
+```
+
+# 查看版本号
+
+patronictl -c /etc/patroni/patroni.yml version
+
+```bash
+[root@wtj1vpk8sql02 ~]# patronictl -c /etc/patroni/patroni.yml version
+patronictl version 3.3.2
+```
+
+# 编辑配置文件
+
+>修改最大连接数后需要重启才能生效，因此Patroni会在相关的节点状态中设置一个`Pending restart`标志。
+
+patronictl -c /etc/patroni/patroni.yml edit-config cluster_name
+
+```bash
+[postgres@wtj1vpk8sql02 ~]$ patronictl -c /etc/patroni/patroni.yml edit-config pgsql16
+--- 
++++ 
+@@ -6,7 +6,7 @@
+     hot_standby: 'on'
+     listen_addresses: '*'
+     logging_collector: 'on'
+-    max_connections: 300
++    max_connections: 10000
+     max_replication_slots: 10
+     max_wal_senders: 10
+     port: 5432
+
+Apply these changes? [y/N]: y
+Configuration changed
+
+[postgres@wtj1vpk8sql02 ~]$ patronictl -c /etc/patroni/patroni.yml show-config pgsql16
+loop_wait: 1
+master_start_timeout: 300
+maximum_lag_on_failover: 1048576
+postgresql:
+  parameters:
+    hot_standby: 'on'
+    listen_addresses: '*'
+    logging_collector: 'on'
+    max_connections: 10000
+    max_replication_slots: 10
+    max_wal_senders: 10
+    port: 5432
+    wal_keep_segments: 1000
+    wal_level: replica
+    wal_log_hints: 'on'
+  use_pg_rewind: true
+  use_slots: true
+retry_timeout: 14
+synchronous_mode: true
+ttl: 30
+
+[postgres@wtj1vpk8sql02 ~]$ 
+
+[postgres@wtj1vpk8sql02 ~]$ patronictl -c /etc/patroni/patroni.yml reload pgsql16
++ Cluster: pgsql16 (7408855315163097790) -----------+----+-----------+-----------------+-----------------------------+
+| Member | Host          | Role         | State     | TL | Lag in MB | Pending restart | Pending restart reason      |
++--------+---------------+--------------+-----------+----+-----------+-----------------+-----------------------------+
+| pg01   | 172.17.44.155 | Replica      | streaming |  5 |         0 | *               | max_connections: 300->10000 |
+| pg02   | 172.17.44.156 | Leader       | running   |  5 |           | *               | max_connections: 300->10000 |
+| pg03   | 172.17.44.157 | Sync Standby | streaming |  5 |         0 | *               | max_connections: 300->10000 |
++--------+---------------+--------------+-----------+----+-----------+-----------------+-----------------------------+
+Are you sure you want to reload members pg01, pg02, pg03? [y/N]: y
+Reload request received for member pg01 and will be processed within 1 seconds
+Reload request received for member pg02 and will be processed within 1 seconds
+Reload request received for member pg03 and will be processed within 1 seconds
+
+[postgres@wtj1vpk8sql02 ~]$ patronictl -c /etc/patroni/patroni.yml show-config pgsql16
+loop_wait: 1
+master_start_timeout: 300
+maximum_lag_on_failover: 1048576
+postgresql:
+  parameters:
+    hot_standby: 'on'
+    listen_addresses: '*'
+    logging_collector: 'on'
+    max_connections: 10000
+    max_replication_slots: 10
+    max_wal_senders: 10
+    port: 5432
+    wal_keep_segments: 1000
+    wal_level: replica
+    wal_log_hints: 'on'
+  use_pg_rewind: true
+  use_slots: true
+retry_timeout: 14
+synchronous_mode: true
+ttl: 30
+
+[postgres@wtj1vpk8sql02 ~]$ patronictl -c /etc/patroni/patroni.yml list
++ Cluster: pgsql16 (7408855315163097790) -----------+----+-----------+-----------------+-----------------------------+
+| Member | Host          | Role         | State     | TL | Lag in MB | Pending restart | Pending restart reason      |
++--------+---------------+--------------+-----------+----+-----------+-----------------+-----------------------------+
+| pg01   | 172.17.44.155 | Replica      | streaming |  5 |         0 | *               | max_connections: 300->10000 |
+| pg02   | 172.17.44.156 | Leader       | running   |  5 |           | *               | max_connections: 300->10000 |
+| pg03   | 172.17.44.157 | Sync Standby | streaming |  5 |         0 | *               | max_connections: 300->10000 |
++--------+---------------+--------------+-----------+----+-----------+-----------------+-----------------------------+
+[postgres@wtj1vpk8sql02 ~]$ 
+
+[postgres@wtj1vpk8sql02 ~]$ patronictl -c /etc/patroni/patroni.yml restart pgsql16
++ Cluster: pgsql16 (7408855315163097790) -----------+----+-----------+-----------------+-----------------------------+
+| Member | Host          | Role         | State     | TL | Lag in MB | Pending restart | Pending restart reason      |
++--------+---------------+--------------+-----------+----+-----------+-----------------+-----------------------------+
+| pg01   | 172.17.44.155 | Replica      | streaming |  5 |         0 | *               | max_connections: 300->10000 |
+| pg02   | 172.17.44.156 | Leader       | running   |  5 |           | *               | max_connections: 300->10000 |
+| pg03   | 172.17.44.157 | Sync Standby | streaming |  5 |         0 | *               | max_connections: 300->10000 |
++--------+---------------+--------------+-----------+----+-----------+-----------------+-----------------------------+
+When should the restart take place (e.g. 2024-09-02T19:04)  [now]: 
+Are you sure you want to restart members pg01, pg02, pg03? [y/N]: y
+Restart if the PostgreSQL version is less than provided (e.g. 9.5.2)  []: 
+Success: restart on member pg01
+Success: restart on member pg02
+Success: restart on member pg03
+
+```
+
+# 查看所有成员信息
+
+patronictl -c /etc/patroni/patroni.yml list
+
+```bash
+[root@wtj1vpk8sql02 ~]# patronictl -c /etc/patroni/patroni.yml list
++ Cluster: pgsql16 (7408855315163097790) -----------+----+-----------+
+| Member | Host          | Role         | State     | TL | Lag in MB |
++--------+---------------+--------------+-----------+----+-----------+
+| pg01   | 172.17.44.155 | Leader       | running   |  4 |           |
+| pg02   | 172.17.44.156 | Sync Standby | streaming |  4 |         0 |
+| pg03   | 172.17.44.157 | Replica      | streaming |  4 |         0 |
++--------+---------------+--------------+-----------+----+-----------+
+```
+
+# 重新加载配置
+
+patronictl -c /etc/patroni/patroni.yml reload cluster_name
+
+```bash
+[root@wtj1vpk8sql02 ~]# patronictl -c /etc/patroni/patroni.yml reload pgsql16
++ Cluster: pgsql16 (7408855315163097790) -----------+----+-----------+
+| Member | Host          | Role         | State     | TL | Lag in MB |
++--------+---------------+--------------+-----------+----+-----------+
+| pg01   | 172.17.44.155 | Leader       | running   |  4 |           |
+| pg02   | 172.17.44.156 | Sync Standby | streaming |  4 |         0 |
+| pg03   | 172.17.44.157 | Replica      | streaming |  4 |         0 |
++--------+---------------+--------------+-----------+----+-----------+
+Are you sure you want to reload members pg01, pg02, pg03? [y/N]: y
+Reload request received for member pg01 and will be processed within 1 seconds
+Reload request received for member pg02 and will be processed within 1 seconds
+Reload request received for member pg03 and will be processed within 1 seconds
+```
+
+
+
+# 移除集群，重新配置的时候使用
+
+patronictl -c /etc/patroni/patroni.yml  remove cluster_name
+
+# 重启数据库集群
+
+patronictl  -c /etc/patroni/patroni.yml restart cluster_name
+
+```bash
+
+[root@wtj1vpk8sql02 ~]# patronictl -c /etc/patroni/patroni.yml restart pgsql16
++ Cluster: pgsql16 (7408855315163097790) -----------+----+-----------+
+| Member | Host          | Role         | State     | TL | Lag in MB |
++--------+---------------+--------------+-----------+----+-----------+
+| pg01   | 172.17.44.155 | Leader       | running   |  4 |           |
+| pg02   | 172.17.44.156 | Sync Standby | streaming |  4 |         0 |
+| pg03   | 172.17.44.157 | Replica      | streaming |  4 |         0 |
++--------+---------------+--------------+-----------+----+-----------+
+When should the restart take place (e.g. 2024-09-02T18:45)  [now]: 
+Are you sure you want to restart members pg01, pg02, pg03? [y/N]: y
+Restart if the PostgreSQL version is less than provided (e.g. 9.5.2)  []: 
+Success: restart on member pg01
+Success: restart on member pg02
+Success: restart on member pg03
+```
+
+# 切换 Leader，将一个 slave 切换成 leader。
+
+patronictl  -c /etc/patroni/patroni.yml switchover
+
+```bash
+
+[root@wtj1vpk8sql02 ~]# patronictl -c /etc/patroni/patroni.yml switchover
+Current cluster topology
++ Cluster: pgsql16 (7408855315163097790) -----------+----+-----------+
+| Member | Host          | Role         | State     | TL | Lag in MB |
++--------+---------------+--------------+-----------+----+-----------+
+| pg01   | 172.17.44.155 | Leader       | running   |  4 |           |
+| pg02   | 172.17.44.156 | Sync Standby | streaming |  4 |         0 |
+| pg03   | 172.17.44.157 | Replica      | streaming |  4 |         0 |
++--------+---------------+--------------+-----------+----+-----------+
+Primary [pg01]: 
+Candidate ['pg02', 'pg03'] []: pg02                                                                    
+When should the switchover take place (e.g. 2024-09-02T18:50 )  [now]: 
+Are you sure you want to switchover cluster pgsql16, demoting current leader pg01? [y/N]: y
+2024-09-02 17:50:29.66974 Successfully switched over to "pg02"
++ Cluster: pgsql16 (7408855315163097790) ----+----+-----------+
+| Member | Host          | Role    | State   | TL | Lag in MB |
++--------+---------------+---------+---------+----+-----------+
+| pg01   | 172.17.44.155 | Replica | stopped |    |   unknown |
+| pg02   | 172.17.44.156 | Leader  | running |  4 |           |
+| pg03   | 172.17.44.157 | Replica | running |  4 |         0 |
++--------+---------------+---------+---------+----+-----------+
+[root@wtj1vpk8sql02 ~]# patronictl -c /etc/patroni/patroni.yml list
++ Cluster: pgsql16 (7408855315163097790) -----------+----+-----------+
+| Member | Host          | Role         | State     | TL | Lag in MB |
++--------+---------------+--------------+-----------+----+-----------+
+| pg01   | 172.17.44.155 | Replica      | streaming |  5 |         0 |
+| pg02   | 172.17.44.156 | Leader       | running   |  5 |           |
+| pg03   | 172.17.44.157 | Sync Standby | streaming |  5 |         0 |
++--------+---------------+--------------+-----------+----+-----------+
+[root@wtj1vpk8sql02 ~]# 
+```

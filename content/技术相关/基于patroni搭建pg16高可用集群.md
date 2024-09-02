@@ -14,7 +14,23 @@ Patroni是一个基于Python的用于实现PostgreSQL HA解决方案的框架。
 
 当前支持的PostgreSQL版本从9.3到16。支持自动化故障转移、物理复制和逻辑复制、提供 RESTful API 接口，允许外部应用或运维工具直接操作 PostgreSQL 集群，进行如启停、迁移等操作，与 Linux watchdog集成，以避免脑裂现象。
 
-  
+# Patroni 优势
+
+- 支持自动 failover 和按需 switchover
+- 支持一个和多个备节点
+- 支持级联复制
+- 支持同步复制，异步复制
+- 支持同步复制下备库故障时自动降级为异步复制（功效类似于 MySQL 的半同步，但是更加智能）
+- 支持控制指定节点是否参与选主，是否参与负载均衡以及是否可以成为同步备机
+- 支持通过pg_rewind自动修复旧主
+- 支持多种方式初始化集群和重建备机，包括pg_basebackup和支持wal_e，pgBackRest，barman等备份工具的自定义脚本
+- 支持自定义外部 callback 脚本
+- 支持 REST API
+- 支持通过 watchdog 防止脑裂
+- 支持 k8s，docker 等容器化环境部署
+- 支持多种常见 DCS(Distributed Configuration Store)存储元数据，包括 etcd，ZooKeeper，Consul，Kubernetes
+
+因此，除非只有 2 台机器没有多余机器部署 [DCS](https://so.csdn.net/so/search?q=DCS&spm=1001.2101.3001.7020) 的情况，Patroni 是一款非常值得推荐的 PostgreSQL 高可用工具。
 
 项目地址：https://github.com/zalando/patroni/
 
@@ -250,6 +266,17 @@ Aug 30 17:17:58 wtj1vpk8sql04 etcd[24372]: {"level":"info","ts":"2024-08-30T17:1
 |  172.17.44.68:2379 | 1ddf9fc3680e97d7 |  3.5.15 |   90 kB |     false |      false |         5 |        230 |                230 |        |
 |  172.17.44.69:2379 | 9b775eb3953be3d8 |  3.5.15 |   90 kB |     false |      false |         5 |        230 |                230 |        |
 +--------------------+------------------+---------+---------+-----------+------------+-----------+------------+--------------------+--------+
+
+[root@wtj1vpk8sql04 ~]# etcdctl --endpoints=172.17.44.158:2379,172.17.44.68:2379,172.17.44.69:2379  endpoint health
+172.17.44.158:2379 is healthy: successfully committed proposal: took = 1.881018ms
+172.17.44.69:2379 is healthy: successfully committed proposal: took = 1.996743ms
+172.17.44.68:2379 is healthy: successfully committed proposal: took = 2.241606ms
+[root@wtj1vpk8sql04 ~]# etcdctl --endpoints=172.17.44.158:2379,172.17.44.68:2379,172.17.44.69:2379  endpoint status
+172.17.44.158:2379, 8ae877675b454848, 3.5.15, 111 kB, true, false, 5, 325, 325, 
+172.17.44.68:2379, 1ddf9fc3680e97d7, 3.5.15, 111 kB, false, false, 5, 325, 325, 
+172.17.44.69:2379, 9b775eb3953be3d8, 3.5.15, 111 kB, false, false, 5, 325, 325, 
+
+
 ```
 
   
@@ -348,7 +375,7 @@ echo postgres|passwd --stdin postgres
 
   
 
-```Plain
+```bash
 vi .bash_profile
 export PGHOME=/acdata/data/pg16/pgsoft
 export PGDATA=/acdata/data/pg16/data
@@ -362,19 +389,31 @@ export PGDATABASE=postgres
 ##  环境变量最好放在全局配置文件/etc/profile中
 
 否则，在启动服务时，可能会遇到如下问题：
-  ```js
+  ```bash
 
-  Aug 28 16:06:21 wtj1vpk8sql01 patroni: FATAL: Patroni requires psycopg2>=2.5.4, psycopg2-binary, or psycopg>=3.0.0
+Aug 28 16:06:21 wtj1vpk8sql01 patroni: FATAL: Patroni requires psycopg2>=2.5.4, psycopg2-binary, or psycopg>=3.0.0
 Aug 28 16:06:21 wtj1vpk8sql01 systemd: patroni.service: main process exited, code=exited, status=1/FAILURE
 Aug 28 16:06:21 wtj1vpk8sql01 systemd: Unit patroni.service entered failed state.
 Aug 28 16:06:21 wtj1vpk8sql01 systemd: patroni.service failed.
+```
+
+```bash
+vi /etc/profile.conf
+
+export PGHOME=/acdata/data/pg16/pgsoft
+export PGDATA=/acdata/data/pg16/data
+export PATH=$PGHOME/bin:$PATH:.
+export LD_LIBRARY_PATH=$PGHOME/lib:$LD_LIBRARY_PATH
+export PGPORT=5432
+export PGUSER=postgres
+export PGDATABASE=postgres  
 ```
 
 ## 创建pg16软件安装目录
 
   
 
-```Plain
+```bash
 mkdir -p /acdata/data/pg16/pgsoft
 chmod 755 -R /acdata/data/pg16/pgsoft
 chown -R postgres:postgres /acdata/data/pg16/pgsoft
@@ -386,7 +425,7 @@ chown -R postgres:postgres /acdata/data/pg16/pgsoft
 
   
 
-```Plain
+```bash
 mkdir -p /acdata/data/pg16/data
 chmod -R 700 /acdata/data/pg16/data
 chown -R postgres:postgres /acdata/data/pg16/data
@@ -398,7 +437,7 @@ chown -R postgres:postgres /acdata/data/pg16/data
 
   
 
-```Plain
+```bash
 tar -zxvf /soft/postgresql-16.3.tar.gz 
 chown -R postgres:postgres /soft/postgresql-16.3/
 ```
@@ -409,7 +448,7 @@ chown -R postgres:postgres /soft/postgresql-16.3/
 
   
 
-```Plain
+```bash
 su - postgres
 cd /soft/postgresql-16.3/
 ./configure  --prefix=/acdata/data/pg16/pgsoft --with-pgport=5432  --with-extra-version=" [By gg]" --with-perl  --with-libxml  --with-libxslt
@@ -419,8 +458,6 @@ gmake world && gmake install-world
   
 
 # 配置sudo权限
-
-  
 
   
 
@@ -441,13 +478,16 @@ watchdog防止脑裂。Patroni支持通过Linux的watchdog监视patroni进程的
 
   
 
-```Plain
+```bash
 # 安装软件，linux内置功能
 yum install -y watchdog
+
 # 初始化watchdog字符设备
 modprobe softdog
+
 # 修改/dev/watchdog设备权限
 chmod 666 /dev/watchdog
+
 # 启动watchdog服务
 systemctl start watchdog
 systemctl enable watchdog
@@ -473,7 +513,55 @@ pip3 install patroni
 ```
 
   
+### 报错处理：
 
+```bash
+[root@wtj1vpk8sql01 pg_cluster_source]# python3 get-pip.py 
+WARNING: Retrying (Retry(total=4, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0x7f1535a96898>: Failed to establish a new connection: [Errno 101] Network is unreachable',)': /simple/pip/ 
+WARNING: Retrying (Retry(total=3, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0x7f1535a96390>: Failed to establish a new connection: [Errno 101] Network is unreachable',)': /simple/pip/ 
+```
+
+### 解决办法：
+>在 CentOS 7.9 下，你可以通过以下几种方法来更换 `pip` 的源。替换 `pip` 源可以加速 Python 包的安装过程，特别是在国内使用时，推荐使用国内的镜像源如阿里云、清华大学等。
+
+### **方法 1：全局更换 `pip` 源**
+
+要全局更换 `pip` 的源，可以配置 `pip` 的配置文件。这样以后所有的 `pip` 操作都会使用新的源。
+
+1. **创建或编辑 `pip` 配置文件**对于 CentOS 7.9，`pip` 的配置文件通常位于 `~/.pip/pip.conf`（对于当前用户）或 `/etc/pip.conf`（全局配置）。创建目录并编辑文件：
+
+```bash
+mkdir -p ~/.pip 
+vi ~/.pip/pip.conf
+```
+
+或者编辑全局配置文件：
+
+```bash
+sudo vi /etc/pip.conf
+```
+
+2. **配置国内镜像源**在文件中添加以下内容（根据你的选择替换成对应的源）：
+
+- **阿里云**
+
+```bash
+[global] 
+index-url = https://mirrors.aliyun.com/pypi/simple/ 
+
+[install] 
+trusted-host = mirrors.aliyun.com
+
+```
+
+3. **保存文件并退出**
+4. **测试新的 `pip` 源**你可以安装一个包来测试新的源是否生效：
+```bash
+pip install <package-name>
+```
+
+>安装速度应当有所提升，并且在安装日志中可以看到它是从你指定的镜像源下载的包。
+>
 ## 检查patroni
 
   
@@ -502,6 +590,7 @@ Type=simple
 User=postgres
 Group=postgres
 EnvironmentFile=-/etc/patroni/patroni_env.conf
+
 # 使用watchdog进行服务监控
 ExecStartPre=-/usr/bin/sudo /sbin/modprobe softdog
 ExecStartPre=-/usr/bin/sudo /bin/chown postgres /dev/watchdog
@@ -520,15 +609,55 @@ EOF
 systemctl daemon-reload
 ```
 
-  
+
+## 注意：
+
+```bash
+配置文件/etc/patroni/patroni_env.conf,可以使用如果命令生成：
+# touch /etc/patroni/patroni_env.conf
+# chown -R postgres.postgres /etc/patroni/patroni_env.conf
+
+$ su - postgres
+$ env > /etc/patroni/patroni_env.conf
+
+$ cat /etc/patroni/patroni_env.conf
+
+XDG_SESSION_ID=533
+HOSTNAME=wtj1vpk8sql03
+SHELL=/bin/bash
+TERM=xterm
+HISTSIZE=1000
+USER=postgres
+PGPORT=5432
+LD_LIBRARY_PATH=/acdata/data/pg16/pgsoft/lib:
+LS_COLORS=rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=01;05;37;41:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.Z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.jpg=01;35:*.jpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.axv=01;35:*.anx=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=01;36:*.au=01;36:*.flac=01;36:*.mid=01;36:*.midi=01;36:*.mka=01;36:*.mp3=01;36:*.mpc=01;36:*.ogg=01;36:*.ra=01;36:*.wav=01;36:*.axa=01;36:*.oga=01;36:*.spx=01;36:*.xspf=01;36:
+PGUSER=postgres
+PGDATABASE=postgres
+MAIL=/var/spool/mail/postgres
+PATH=/acdata/data/pg16/pgsoft/bin:/usr/local/bin:/usr/local/bin:/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/usr/bin/python3:/usr/local/bin/pip3:/home/postgres/bin:.:/home/postgres/.local/bin:/home/postgres/bin
+PWD=/home/postgres
+LANG=en_US.UTF-8
+PGHOME=/acdata/data/pg16/pgsoft
+HISTCONTROL=ignoredups
+SHLVL=1
+HOME=/home/postgres
+LOGNAME=postgres
+PGDATA=/acdata/data/pg16/data
+LESSOPEN=||/usr/bin/lesspipe.sh %s
+PATRONICTL_CONFIG_FILE=/etc/patroni/patroni.yml
+_=/bin/env
+```
 
 ## 配置patroni
 
   
 
-```Plain
+```bash
+
 # **不同节点需要修改对应的IP信息，以及开头的name信息**
-node1:
+
+# node1节点:
+
 # root用户执行
 mkdir -p /etc/patroni
 vi /etc/patroni/patroni.yml 
@@ -542,7 +671,103 @@ restapi:
   connect_address: 172.17.44.155:8008
 
 etcd3:
-  hosts: 172.17.44.155:2379,172.17.44.156:2379,172.17.44.157:2379
+  hosts: 172.17.44.158:2379,172.17.44.68:2379,172.17.44.69:2379
+
+bootstrap:
+ # this section will be written into Etcd:/<namespace>/<scope>/config after initializing new cluster and all other cluster members will use it as a `global configuration`
+  dcs:
+    ttl: 30
+    loop_wait: 10             # 循环更新领导者密钥过程中的休眠时间
+    retry_timeout: 30         # etcd和PostgreSQL操作重试的超时时间（以秒为单位）
+    maximum_lag_on_failover: 1048576  # 如果Master和Replicate之间的字节数延迟大于此值，那么Replicate将不参与新的领导者选举
+    master_start_timeout: 300
+    synchronous_mode: true    # 是否打开同步复制模式
+    postgresql:               # PostgreSQL的配置，是否使用pg_rewind，是否使用复制插槽，还有PostgreSQL参数等信息
+      use_pg_rewind: true
+      use_slots: true
+      parameters:
+        listen_addresses: "*"
+        port: 5432
+        wal_level: "replica"
+        hot_standby: "on"
+        wal_keep_segments: 1000
+        max_wal_senders: 10
+        max_replication_slots: 10
+        wal_log_hints: "on"
+        logging_collector: "on"
+#        archive_mode: "on"
+#        archive_timeout: 1800s
+#        archive_command: cp %p /acdata/backup/pgwalarchive/%f
+#      recovery_conf:
+#        restore_command: cp /acdata/backup/pgwalarchive/%f %p
+
+  initdb:                 # 定义了在引导过程中要传递给initdb的选项
+   - encoding: UTF8
+   - locale: C
+   - lc-ctype: zh_CN.UTF-8
+   - data-checksums
+
+#  pg_hba:                # 定义了集群初始化后，pg_hba.conf中该设置的条目
+#   - host replication repuser 172.17.44.0/21 md5
+#   - host all all 172.17.0.0/16 md5
+
+  pg_hba:
+  - host replication repuser 0.0.0.0/0 md5
+  - host all all 0.0.0.0/0 md5
+
+  users:
+      admin:
+          password: admin
+          options:
+                - createrole
+                - createdb
+
+postgresql:
+  listen: 172.17.44.155:5432
+  connect_address: 172.17.44.155:5432
+  data_dir: /acdata/data/pg16/data
+  bin_dir: /acdata/data/pg16/pgsoft/bin
+
+  authentication:
+    replication:
+      username: repuser
+      password: '123456'
+    superuser:
+      username: postgres
+      password: postgres
+
+basebackup:
+    max-rate: 100M
+    checkpoint: fast
+callbacks:
+    on_start: /etc/patroni/patroni_callback.sh
+    on_stop:  /etc/patroni/patroni_callback.sh
+    on_role_change: /etc/patroni/patroni_callback.sh
+
+watchdog:
+  mode: automatic       # Allowed values: off, automatic, required
+  device: /dev/watchdog
+  safety_margin: 5
+
+tags:
+   nofailover: false       # 不参与选主
+   noloadbalance: false    # 不参与负载均衡
+   clonefrom: false
+   nosync: false           # 也不作为同步备库
+
+   
+# node2节点:
+
+scope: pgsql16
+namespace: /pgsql/
+name: pg02
+
+restapi:
+  listen: 0.0.0.0:8008
+  connect_address: 172.17.44.156:8008
+
+etcd3:
+  hosts: 172.17.44.158:2379,172.17.44.68:2379,172.17.44.69:2379
 
 bootstrap:
  # this section will be written into Etcd:/<namespace>/<scope>/config after initializing new cluster and all other cluster members will use it as a `global configuration`
@@ -559,7 +784,7 @@ bootstrap:
       parameters:
         listen_addresses: "*"
         port: 5432
-        wal_level: replica
+        wal_level: "replica"
         hot_standby: "on"
         wal_keep_segments: 1000
         max_wal_senders: 10
@@ -578,13 +803,24 @@ bootstrap:
    - lc-ctype: zh_CN.UTF-8
    - data-checksums
 
+#  pg_hba:
+#   - host replication repuser 172.17.44.0/21 md5
+#   - host all all 172.17.0.0/16 md5
+
   pg_hba:
-   - host replication repuser 172.17.44.0/21 md5
-   - host all all 172.17.0.0/16 md5
+  - host replication repuser 0.0.0.0/0 md5
+  - host all all 0.0.0.0/0 md5
+
+  users:
+      admin:
+          password: admin
+          options:
+                - createrole
+                - createdb
 
 postgresql:
-  listen: 172.17.44.155:5432
-  connect_address: 172.17.44.155:5432
+  listen: 172.17.44.156:5432
+  connect_address: 172.17.44.156:5432
   data_dir: /acdata/data/pg16/data
   bin_dir: /acdata/data/pg16/pgsoft/bin
 
@@ -597,8 +833,9 @@ postgresql:
       password: postgres
 
 basebackup:
-    #max-rate: 100M
+    max-rate: 100M
     checkpoint: fast
+
 callbacks:
     on_start: /etc/patroni/patroni_callback.sh
     on_stop:  /etc/patroni/patroni_callback.sh
@@ -614,27 +851,103 @@ tags:
    noloadbalance: false
    clonefrom: false
    nosync: false
-
    
-# node2修改:
-name: pg02
-restapi:
-  listen: 0.0.0.0:8008
-  connect_address: 172.17.44.156:8008
-
-postgresql:
-  listen: 172.17.44.156:5432
-  connect_address: 172.17.44.156:5432
   
-# node3修改
+# node3节点:
+
+scope: pgsql16
+namespace: /pgsql/
 name: pg03
+
 restapi:
   listen: 0.0.0.0:8008
   connect_address: 172.17.44.157:8008
 
+etcd3:
+  hosts: 172.17.44.158:2379,172.17.44.68:2379,172.17.44.69:2379
+
+bootstrap:
+ # this section will be written into Etcd:/<namespace>/<scope>/config after initializing new cluster and all other cluster members will use it as a `global configuration`
+  dcs:
+    ttl: 30
+    loop_wait: 10
+    retry_timeout: 30
+    maximum_lag_on_failover: 1048576
+    master_start_timeout: 300
+    synchronous_mode: true
+    postgresql:
+      use_pg_rewind: true
+      use_slots: true
+      parameters:
+        listen_addresses: "*"
+        port: 5432
+        wal_level: "replica"
+        hot_standby: "on"
+        wal_keep_segments: 1000
+        max_wal_senders: 10
+        max_replication_slots: 10
+        wal_log_hints: "on"
+        logging_collector: "on"
+#        archive_mode: "on"
+#        archive_timeout: 1800s
+#        archive_command: cp %p /acdata/backup/pgwalarchive/%f
+#      recovery_conf:
+#        restore_command: cp /acdata/backup/pgwalarchive/%f %p
+
+  initdb:
+   - encoding: UTF8
+   - locale: C
+   - lc-ctype: zh_CN.UTF-8
+   - data-checksums
+
+#  pg_hba:
+#   - host replication repuser 172.17.44.0/21 md5
+#   - host all all 172.17.0.0/16 md5
+
+  pg_hba:
+  - host replication repuser 0.0.0.0/0 md5
+  - host all all 0.0.0.0/0 md5
+
+  users:
+      admin:
+          password: admin
+          options:
+                - createrole
+                - createdb
+
 postgresql:
   listen: 172.17.44.157:5432
-  connect_address: 172.17.44.157:5432  
+  connect_address: 172.17.44.157:5432
+  data_dir: /acdata/data/pg16/data
+  bin_dir: /acdata/data/pg16/pgsoft/bin
+
+  authentication:
+    replication:
+      username: repuser
+      password: '123456'
+    superuser:
+      username: postgres
+      password: postgres
+
+basebackup:
+    max-rate: 100M
+    checkpoint: fast
+
+callbacks:
+    on_start: /etc/patroni/patroni_callback.sh
+    on_stop:  /etc/patroni/patroni_callback.sh
+    on_role_change: /etc/patroni/patroni_callback.sh
+
+watchdog:
+  mode: automatic       # Allowed values: off, automatic, required
+  device: /dev/watchdog
+  safety_margin: 5
+
+tags:
+   nofailover: false
+   noloadbalance: false
+   clonefrom: false
+   nosync: false 
 ```
 
 
@@ -648,7 +961,8 @@ postgresql:
 
   
 
-```Plain
+```bash
+
 cat >> /etc/patroni/patroni_callback.sh <<EOF
 
 #!/bin/bash
@@ -710,12 +1024,13 @@ chown postgres:postgres /etc/patroni/patroni_callback.sh
 
   
 
-```Plain
---方法一:直接启动：
+```bash
+
+# 方法一:直接启动：
 su - postgres
 patroni /etc/patroni/patroni.yml
 
---方法二：服务启动
+# 方法二：服务启动
 systemctl start patroni
 ```
 
@@ -726,15 +1041,13 @@ systemctl start patroni
   
 
 ```bash
-patronictl -c /etc/patroni/patroni.yml list
-
 [root@wtj1vpk8sql01 ~]# patronictl -c /etc/patroni/patroni.yml list
-+ Cluster: pgsql16 (7408451029595073953) -----------+----+-----------+
++ Cluster: pgsql16 (7408855315163097790) -----------+----+-----------+
 | Member | Host          | Role         | State     | TL | Lag in MB |
 +--------+---------------+--------------+-----------+----+-----------+
 | pg01   | 172.17.44.155 | Leader       | running   |  1 |           |
-| pg02   | 172.17.44.156 | Replica      | running   |  1 |        16 |
-| pg03   | 172.17.44.157 | Sync Standby | streaming |  1 |         0 |
+| pg02   | 172.17.44.156 | Sync Standby | streaming |  1 |         0 |
+| pg03   | 172.17.44.157 | Replica      | streaming |  1 |         0 |
 +--------+---------------+--------------+-----------+----+-----------+
 ```
 
@@ -778,22 +1091,33 @@ patronictl -c /etc/patroni/patroni.yml list
 
   
 
-```Plain
+```bash
+
 # psql
 
 postgres=# select * from pg_stat_replication;
-  pid  | usesysid | usename | application_name |  client_addr   | client_hostname | client_port |         backend_start         | backend_xmin |   state   | 
-sent_lsn  | write_lsn | flush_lsn | replay_lsn | write_lag | flush_lag | replay_lag | sync_priority | sync_state |          reply_time           
--------+----------+---------+------------------+----------------+-----------------+-------------+-------------------------------+--------------+-----------+-
-----------+-----------+-----------+------------+-----------+-----------+------------+---------------+------------+-------------------------------
- 27254 |    16385 | repuser | pg02             | 172.17.44.156 |                 |       41246 | 2024-06-04 19:33:29.367051+08 |              | streaming | 
-0/6000148 | 0/6000148 | 0/6000148 | 0/6000148  |           |           |            |             1 | sync       | 2024-06-04 20:21:24.373685+08
- 27309 |    16385 | repuser | pg03             | 172.17.44.157 |                 |       55470 | 2024-06-04 19:38:30.09852+08  |              | streaming | 
-0/6000148 | 0/6000148 | 0/6000148 | 0/6000148  |           |           |            |             0 | async      | 2024-06-04 20:21:24.398927+08
+ pid  | usesysid | usename | application_name |  client_addr  | client_hostname | client_port |         backend_start 
+        | backend_xmin |   state   | sent_lsn  | write_lsn | flush_lsn | replay_lsn | write_lag | flush_lag | replay_l
+ag | sync_priority | sync_state |          reply_time           
+------+----------+---------+------------------+---------------+-----------------+-------------+-----------------------
+--------+--------------+-----------+-----------+-----------+-----------+------------+-----------+-----------+---------
+---+---------------+------------+-------------------------------
+ 2805 |    16384 | repuser | pg02             | 172.17.44.156 |                 |       50462 | 2024-08-30 17:06:59.06
+6348+08 |              | streaming | 0/5000148 | 0/5000148 | 0/5000148 | 0/5000148  |           |           |         
+   |             1 | sync       | 2024-08-30 18:03:52.644567+08
+ 2811 |    16384 | repuser | pg03             | 172.17.44.157 |                 |       40864 | 2024-08-30 17:08:20.94
+7125+08 |              | streaming | 0/5000148 | 0/5000148 | 0/5000148 | 0/5000148  |           |           |         
+   |             0 | async      | 2024-08-30 18:03:48.894924+08
 (2 rows)
 ```
 
-  
+  ![[Pasted image 20240830184606.png]]
+
+
+[root@wtj1vpk8sql01 ~]# sh /etc/patroni/patroni_callback.sh on_start master pgsql
+2024-09-02 09:51:23 +0800 This is patroni callback on_start master pgsql
+2024-09-02 09:51:23 +0800 VIP 172.17.44.159 added
+
 
 # 高可用测试
 
@@ -825,6 +1149,8 @@ Are you sure you want to switchover cluster pgsql16, demoting current leader pg0
 | pg02   | 172.17.44.156:5432 | Leader  | running |  7 |           |
 | pg03   | 172.17.44.157:5432 | Replica | running |  7 |         0 |
 +--------+---------------------+---------+---------+----+-----------+
+
+
 [postgres@node2 ~]$ patronictl -c /etc/patroni/patroni.yml list
 + Cluster: pgsql16 (7376595871806153493) -----+-----------+----+-----------+
 | Member | Host                | Role         | State     | TL | Lag in MB |
@@ -986,6 +1312,24 @@ patroni /etc/patroni/patroni.yml
 | pg03   | 172.17.44.157 | Leader       | running   |  2 |           |
 +--------+---------------+--------------+-----------+----+-----------+
 ```
+
+#### Patroni 进阶设定
+
+##### Patroni 故障自动修复
+
+| 故障位置 | 场景                            | Patroni 的动作                                 |
+| ---- | ----------------------------- | ------------------------------------------- |
+| 备库   | 备库 PG 停止                      | 停止备库 PG                                     |
+| 备库   | 停止备库 Patroni                  | 停止备库 PG                                     |
+| 备库   | 强杀备库 Patroni（或 Patroni crash） | 无操作                                         |
+| 备库   | 备库无法连接 etcd                   | 无操作                                         |
+| 备库   | 非 Leader 角色但是 PG 处于生产模式       | 重启 PG 并切换到恢复模式作为备库运行                        |
+| 主库   | 主库 PG 停止                      | 重启 PG，重启超过 master_start_timeout 设定时间，进行主备切换 |
+| 主库   | 停止主库 Patroni                  | 停止主库 PG，并触发 failover                        |
+| 主库   | 强杀主库 Patroni（或 Patroni crash） | 触发 failover，此时可能出现双主                        |
+| 主库   | 主库无法连接 etcd                   | 将主库降级为备库，并触发 failover                       |
+| -    | etcd 集群故障                     | 将主库降级为备库，此时集群中全部都是备库                        |
+| -    | 同步模式下无可用同步备库                  | 临时切换主库为异步复制，在恢复为同步复制之前自动 failover 暂不生效      |
 
 
 # 参考文档
