@@ -194,6 +194,22 @@ Reload request received for member pg03 and will be processed within 1 seconds
 
 patronictl -c /etc/patroni/patroni.yml  remove cluster_name
 
+```bash
+
+[root@wtj1vpk8sql01 ~]# patronictl remove pgsql16
++ Cluster: pgsql16 (7408855315163097790) ----+----+-----------+
+| Member | Host          | Role    | State   | TL | Lag in MB |
++--------+---------------+---------+---------+----+-----------+
+| pg01   | 172.17.44.155 | Replica | stopped |    |   unknown |
+| pg02   | 172.17.44.156 | Replica | stopped |    |   unknown |
+| pg03   | 172.17.44.157 | Replica | stopped |    |   unknown |
++--------+---------------+---------+---------+----+-----------+
+Please confirm the cluster name to remove: pgsql16
+You are about to remove all information in DCS for pgsql16, please type: "Yes I am aware": Yes I am aware
+
+```
+
+
 # 重启数据库集群
 
 patronictl  -c /etc/patroni/patroni.yml restart cluster_name

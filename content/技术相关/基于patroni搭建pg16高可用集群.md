@@ -472,9 +472,9 @@ EOF
 
 # watchdog部署
 
-  
+  > 使用watchdog为防止出现脑裂，如果Leader节点异常导致patroni进程无法及时更新watchdog，会在Leader key过期的前5秒触发重启。重启如果在5秒之内完成，Leader节点有机会再次获得Leader锁，否则Leader key过期后，由备库通过选举选出新的Leader。Patroni会在将PostgreSQL提升为master之前尝试激活watchdog。如果看watchdog激活失败并且watchdog模式是required那么节点将拒绝成为主节点。在决定参加领导者选举时，Patroni还将检查watchdog配置是否允许它成为领导者。在将PostgreSQL降级后（例如由于手动故障转移），Patroni将再次禁用watchdog。当 Patroni处于暂停状态时，watchdog也将被禁用。正常停止Patroni服务，也会将watchdog禁用。
 
-watchdog防止脑裂。Patroni支持通过Linux的watchdog监视patroni进程的运行，当patroni进程无法正常往watchdog设备写入心跳时，由watchdog触发Linux重启。
+> watchdog防止脑裂。Patroni支持通过Linux的watchdog监视patroni进程的运行，当patroni进程无法正常往watchdog设备写入心跳时，由watchdog触发Linux重启。
 
   
 
@@ -1042,11 +1042,25 @@ EOF
   
 
 ```Plain
-chmod +x /etc/patroni/patroni_callback.shcd  
+chmod +x /etc/patroni/patroni_callback.sh
 chown postgres:postgres /etc/patroni/patroni_callback.sh
 ```
 
+  > **注意：**
+  > 第一次需要手动运行如下命令，添加一下vip，后续切换不需要手动干预。
   
+  ```bash
+ [root@wtj1vpk8sql01 ~]# sh /etc/patroni/patroni_callback.sh on_start master pgsql16
+2024-09-03 14:59:11 +0800 This is patroni callback on_start master pg-sentry-prod
+2024-09-03 14:59:11 +0800 VIP 172.17.44.159 added
+
+
+[root@wtj1vpk8sql01 ~]# ip ad sh|grep 172.17
+    inet 172.17.44.155/22 brd 172.17.47.255 scope global noprefixroute ens192
+    inet 172.17.44.159/22 brd 172.17.47.255 scope global secondary ens192:1
+
+```
+
 
 ## 3台节点启动patroni集群
 
