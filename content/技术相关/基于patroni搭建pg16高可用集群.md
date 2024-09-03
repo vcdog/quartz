@@ -512,6 +512,34 @@ pip3 install patroni[etcd]
 pip3 install patroni
 ```
 
+```bash
+[postgres@wtj1vpk8sql02 ~]$  pip3 list
+Package            Version
+------------------ -----------
+click              8.0.4
+dnspython          2.2.1
+importlib-metadata 4.8.3
+patroni            3.3.2
+pip                21.3.1
+prettytable        2.5.0
+psutil             6.0.0
+psycopg2-binary    2.9.8
+python-dateutil    2.9.0.post0
+python-etcd        0.4.5
+PyYAML             6.0.1
+setuptools         39.2.0
+six                1.16.0
+typing_extensions  4.1.1
+urllib3            1.26.19
+wcwidth            0.2.13
+wheel              0.37.1
+ydiff              1.3
+zipp               3.6.0
+```
+
+
+
+```
   
 ### 报错处理：
 

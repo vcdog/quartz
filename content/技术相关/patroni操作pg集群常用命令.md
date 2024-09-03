@@ -253,3 +253,32 @@ Are you sure you want to switchover cluster pgsql16, demoting current leader pg0
 +--------+---------------+--------------+-----------+----+-----------+
 [root@wtj1vpk8sql02 ~]# 
 ```
+
+
+#  修改PostgreSQL参数
+
+修改个别节点的参数，可以执行`ALTER SYSTEM SET ...` SQL命令，比如临时打开某个节点的debug日志。对于需要统一配置的参数应该通过`patronictl edit-config`设置，确保全局一致，比如修改最大连接数。
+
+```bash
+patronictl edit-config -p 'max_connections=300'
+```
+
+修改最大连接数后需要重启才能生效，因此Patroni会在相关的节点状态中设置一个`Pending restart`标志。
+
+```bash
+
+[root@wtj1vpk8sql03 ~]# patronictl list
++ Cluster: pgsql16 (7408855315163097790) -----------+----+-----------+
+| Member | Host          | Role         | State     | TL | Lag in MB |
++--------+---------------+--------------+-----------+----+-----------+
+| pg01   | 172.17.44.155 | Replica      | streaming | 10 |         0 |
+| pg02   | 172.17.44.156 | Sync Standby | streaming | 10 |         0 |
+| pg03   | 172.17.44.157 | Leader       | running   | 10 |           |
++--------+---------------+--------------+-----------+----+-----------+
+```
+
+重启集群中所有PG实例后，参数生效。
+
+```bash
+ patronictl restart pgsql16
+```
