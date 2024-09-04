@@ -714,6 +714,18 @@ bootstrap:
       use_pg_rewind: true
       use_slots: true
       parameters:
+        max_connections: 8000
+        superuser_reserved_connections: 10
+        shared_buffers: 4GB
+        wal_buffers: 1GB
+        effective_cache_size:  12GB
+        work_mem: 4MB
+        maintenance_work_mem: 512MB
+        max_wal_size: 2GB
+        min_wal_size: 256MB
+        idle_in_transaction_session_timeout: 30000 #默认值为 0（禁用）。设置事务空闲超时时间，有助于防止长时间的空闲事务占用资源
+        effective_io_concurrency: 8  #默认值为 1。用于设置并发 IO 请求的数量。对于 SSD 或高速磁盘阵列，建议调高该值（如 200）以提高 IO 性能
+        parallel_workers_per_gather: 8 #默认值为 2。控制查询时用于并行执行的 worker 数量。根据查询复杂度和系统资源，适当增加并行度以提高查询性能
         listen_addresses: "*"
         port: 5432
         wal_level: "replica"
@@ -783,7 +795,123 @@ tags:
    clonefrom: false
    nosync: false           # 也不作为同步备库
 
-   
+
+
+scope: pg-sentry-cluster01
+namespace: /service/
+name: pg01
+
+restapi:
+  listen: 0.0.0.0:8008
+  connect_address: 172.17.44.155:8008
+
+etcd3:
+  hosts: 172.17.44.158:2379,172.17.44.68:2379,172.17.44.69:2379
+
+bootstrap:
+ # this section will be written into Etcd:/<namespace>/<scope>/config after initializing new cluster and all other cluster members will use it as a `global configuration`
+  dcs:
+    ttl: 30
+    loop_wait: 10
+    retry_timeout: 10
+    maximum_lag_on_failover: 1048576
+    master_start_timeout: 300
+    synchronous_mode: true
+    postgresql:
+      use_pg_rewind: true
+      use_slots: true
+      parameters:
+         #listen_addresses: '*'
+         #port: 5432
+         max_connections: 8000
+         superuser_reserved_connections: 10
+         shared_buffers: 4GB
+         wal_buffers: 1GB
+         effective_cache_size:  12GB
+         work_mem: 4MB
+         maintenance_work_mem: 512MB
+         max_wal_size: 2GB
+         min_wal_size: 256MB
+         idle_in_transaction_session_timeout: 30000 
+         effective_io_concurrency: 8 
+         wal_level: "replica"
+         hot_standby: "on"
+         wal_keep_segments: 1000
+         max_wal_senders: 10
+         max_replication_slots: 10
+         wal_log_hints: "on"
+         logging_collector: "on"
+#        archive_mode: "on"
+#        archive_timeout: 1800s
+#        archive_command: cp %p /acdata/backup/pgwalarchive/%f
+#      recovery_conf:
+#        restore_command: cp /acdata/backup/pgwalarchive/%f %p
+
+  initdb:
+   - encoding: UTF8
+   - locale: C
+   - lc-ctype: zh_CN.UTF-8
+   - data-checksums
+
+
+#  pg_hba:
+#   - host replication repuser 172.17.44.0/21 md5
+#   - host all all 172.17.0.0/16 md5
+
+  pg_hba:
+  - host replication repuser 0.0.0.0/0 md5
+  - host all all 0.0.0.0/0 md5
+
+  users:
+      admin:
+          password: admin
+          options:
+                - createrole
+                - createdb
+
+postgresql:
+  listen: 0.0.0.0:5432
+  connect_address: 172.17.44.155:5432
+  data_dir: /acdata/data/pg16/data
+  bin_dir: /acdata/data/pg16/pgsoft/bin
+
+  parameters:
+    listen_addresses: '*'
+    port: 5432
+
+  authentication:
+    replication:
+      username: repuser
+      password: '123456'
+    superuser:
+      username: postgres
+      password: 'FEHdSQQEB8' 
+      #password: postgres 
+
+basebackup:
+    max-rate: 100M
+    checkpoint: fast
+
+callbacks:
+    on_start: /bin/bash /etc/patroni/patroni_callback.sh
+    on_stop:  /bin/bash /etc/patroni/patroni_callback.sh
+    on_role_change: /bin/bash /etc/patroni/patroni_callback.sh
+
+#watchdog:
+#  mode: automatic       # Allowed values: off, automatic, required
+#  device: /dev/watchdog
+#  safety_margin: 5
+
+tags:
+   nofailover: false
+   noloadbalance: false
+   clonefrom: false
+   nosync: false
+
+
+
+
+
 # node2节点:
 
 scope: pgsql16
@@ -998,8 +1126,9 @@ cat >> /etc/patroni/patroni_callback.sh <<EOF
 readonly OPERATION=$1
 readonly ROLE=$2
 readonly SCOPE=$3
+
 VIP='172.17.44.159'
-PREFIX='21'
+PREFIX='22'
 BRD='172.17.47.255'
 INF='ens192'
 
@@ -1373,6 +1502,11 @@ patroni /etc/patroni/patroni.yml
 | -    | etcd 集群故障                     | 将主库降级为备库，此时集群中全部都是备库                        |
 | -    | 同步模式下无可用同步备库                  | 临时切换主库为异步复制，在恢复为同步复制之前自动 failover 暂不生效      |
 
+
+# 遗留问题：
+
+>**patroni的callback脚本调用失败，vip不能自动生成，以及自动漂移。**
+>
 
 # 参考文档
 

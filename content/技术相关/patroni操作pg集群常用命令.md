@@ -1,4 +1,40 @@
 
+```bash
+
+# 单独启动vip
+
+# su - postgres
+$ /bin/bash /etc/patroni/patroni_callback.sh on_start master pg-sentry-cluster03
+
+# 单独关闭vip
+$ /bin/bash /etc/patroni/patroni_callback.sh on_stop master pg-sentry-cluster03
+2024-09-04 14:14:51 +0800 This is patroni callback on_stop master pg-sentry-cluster03
+2024-09-04 14:14:51 +0800 VIP 172.17.44.159 removed
+
+[postgres@wtj1vpk8sql01 ~]$ ifconfig
+ens192: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 172.17.44.155  netmask 255.255.252.0  broadcast 172.17.47.255
+        inet6 fe80::be74:66c7:d817:9c72  prefixlen 64  scopeid 0x20<link>
+        inet6 fe80::cbc2:84a7:c175:3ba  prefixlen 64  scopeid 0x20<link>
+        inet6 fe80::572a:d307:7644:b8e1  prefixlen 64  scopeid 0x20<link>
+        ether 00:50:56:98:e0:6c  txqueuelen 1000  (Ethernet)
+        RX packets 541870  bytes 1693303615 (1.5 GiB)
+        RX errors 0  dropped 48  overruns 0  frame 0
+        TX packets 433559  bytes 7632921655 (7.1 GiB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536
+        inet 127.0.0.1  netmask 255.0.0.0
+        inet6 ::1  prefixlen 128  scopeid 0x10<host>
+        loop  txqueuelen 1000  (Local Loopback)
+        RX packets 44361  bytes 31476048 (30.0 MiB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 44361  bytes 31476048 (30.0 MiB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+[postgres@wtj1vpk8sql01 ~]$ 
+```
+
 # 可以查看命令的使用说明
 
 patronictl –help

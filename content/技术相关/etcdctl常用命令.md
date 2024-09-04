@@ -53,6 +53,52 @@
 
 ```
 
+# 要从 DCS（Distributed Configuration Store）中删除 Patroni 初始化密钥或清除整个集群状态，
+
+>可以通过使用 DCS 后端（如 `etcd`、`Consul` 或 `ZooKeeper`）的命令行工具或 API 来实现。这些步骤可能有所不同，具体取决于你使用的 DCS 后端。以下是针对常见 DCS 后端的操作方法：
+### 1. **使用 `etcdctl`（适用于 `etcd`）**
+
+`etcdctl` 是 `etcd` 的命令行工具，可以用来操作 `etcd` 中的数据。
+
+#### 删除初始化密钥或清除集群状态
+
+假设 Patroni 集群的命名空间是 `/pgsql/`，集群范围（scope）是 `pgsql16`。
+
+**删除集群的初始化密钥：**
+
+bash
+
+复制代码
+
+`etcdctl del /pgsql/pgsql16/initialize`
+
+**删除集群的完整状态：** 要清除 Patroni 在 `etcd` 中的整个状态（包括初始化密钥、主节点信息、配置等），可以删除整个集群的路径：
+
+bash
+
+复制代码
+
+`etcdctl del --prefix /pgsql/pgsql16/`
+
+`[root@wtj1vpk8sql04 ~]#  etcdctl --endpoints=172.17.44.158:2379,172.17.44.68:2379,172.17.44.69:2379  del --prefix /pgsql/pgsql16
+4`
+
+`[root@wtj1vpk8sql04 ~]#  etcdctl --endpoints=172.17.44.158:2379,172.17.44.68:2379,172.17.44.69:2379  get / --prefix --keys-only
+/service/pg-sentry-cluster03/config
+
+/service/pg-sentry-cluster03/initialize
+
+/service/pg-sentry-cluster03/leader
+
+/service/pg-sentry-cluster03/members/pg01
+
+/service/pg-sentry-cluster03/members/pg02
+
+/service/pg-sentry-cluster03/members/pg03
+
+/service/pg-sentry-cluster03/status
+
+/service/pg-sentry-cluster03/sync`
 
 # 查询具体key
 
