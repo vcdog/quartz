@@ -62,7 +62,7 @@ etcd完整的cluster（集群）至少有三台，这样才能选举出一个mas
 | node3 | 172.17.44.157 | Centos7.9 | 8C16G200G | 8008,5432 | patroni+pg03    |
 | node4 | 172.17.44.158 | Centos7.9 | 4C8G200G  | 2379      | etcd-01         |
 | node5 | 172.17.44.68  | Centos7.9 | 4C8G200G  | 2379      | etcd-02,archery |
-| node6 | 172.17.44.68  | Centos7.9 | 4C8G200G  | 2379      | etcd-03,archery |
+| node6 | 172.17.44.69  | Centos7.9 | 4C8G200G  | 2379      | etcd-03,archery |
 
 **vip：172.17.44.159**
 

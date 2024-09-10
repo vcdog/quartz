@@ -827,14 +827,17 @@ fi
 mha是由perl语言开发，所以需要使用perl的依赖，推荐使用yum进行安装，此软件需要安装在每台服务器上。
 
 ```js
-# # rpm -ivh rpmforge-release-0.5.3-1.el7.rf.x86_64.rpm
+# rpm -ivh rpmforge-release-0.5.3-1.el7.rf.x86_64.rpm
 # yum install -y  perl-DBD-MySQL \
                   perl-Config-Tiny \
                   perl-Log-Dispatch \
-                  perl-Parallel-ForkManager \ 
+                  perl-Parallel-ForkManager \
                   perl-Time-HiRes \
-                  perl-ExtUtils-CBuilder \ 
+                  perl-ExtUtils-CBuilder \
                   perl-ExtUtils-MakeMaker
+
+
+# rpm -q perl-DBD-MySQL perl-Config-Tiny perl-Log-Dispatch perl-Parallel-ForkManager  perl-Time-HiRes perl-ExtUtils-CBuilder perl-ExtUtils-MakeMaker
 ```
 
 ## 2、安装mha node
