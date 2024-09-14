@@ -1309,10 +1309,13 @@ $command,          $ssh_user,        $orig_master_host, $orig_master_ip,
 $orig_master_port, $new_master_host, $new_master_ip,    $new_master_port 
 ); 
 
-my $vip = '172.17.44.145/24';  # Virtual IP 
-my $key = "1"; 
-my $ssh_start_vip = "/sbin/ifconfig ens192:$key $vip"; 
-my $ssh_stop_vip = "/sbin/ifconfig ens192:$key down"; 
+###########################################################################  
+my $vip = '172.17.44.145/21';  
+my $key = "1";
+my $ssh_start_vip = "/sbin/ifconfig ens192:$key $vip";  
+my $ssh_stop_vip = "/sbin/ifconfig ens192:$key $vip down";  
+my $ssh_Bcast_arp= "/sbin/arping -I ens192 -c 3 -A 172.17.44.145";
+###########################################################################  
 
 GetOptions( 
 'command=s'          => \$command, 
@@ -1356,8 +1359,11 @@ elsif ( $command eq "start" ) {
         # You can also grant write access (create user, set read_only=0, etc) here. 
 my $exit_code = 10; 
         eval { 
-            print "Enabling the VIP - $vip on the new master - $new_master_host \n"; 
-&start_vip(); 
+###########################################################################  
+    print "Enabling the VIP - $vip on the new master - $new_master_host \n"; 
+            &start_vip(); 
+            &start_arp();
+###########################################################################
             $exit_code = 0; 
         }; 
         if ($@) { 
@@ -1378,14 +1384,18 @@ else {
 } 
 
 # A simple system call that enable the VIP on the new master 
+###########################################################################  
 sub start_vip() { 
-`ssh $ssh_user\@$new_master_host \" $ssh_start_vip \"`; 
+    `ssh $ssh_user\@$new_master_host \" $ssh_start_vip \"`; 
 } 
 # A simple system call that disable the VIP on the old_master 
 sub stop_vip() { 
-`ssh $ssh_user\@$orig_master_host \" $ssh_stop_vip \"`; 
+    `ssh $ssh_user\@$orig_master_host \" $ssh_stop_vip \"`; 
 } 
-
+sub start_arp() {
+    `ssh $ssh_user\@$new_master_host \" $ssh_bcast_arp \"`;
+} 
+###########################################################################
 sub usage { 
 print 
 "Usage: master_ip_failover –command=start|stop|stopssh|status –orig_master_host=host –orig_master_ip=ip –orig_master_port=port –new_master_host=host –new_master_ip=ip –new_master_port=port\n"; 
@@ -1438,7 +1448,8 @@ my (
 my $vip = '172.17.44.145';  
 my $key = "1";
 my $ssh_start_vip = "/sbin/ifconfig ens192:$key $vip";  
-my $ssh_stop_vip = "/sbin/ifconfig ens192:$key $vip down";  
+my $ssh_stop_vip = "/sbin/ifconfig ens192:$key $vip down"; 
+my $ssh_Bcast_arp= "/sbin/arping -I ens192 -c 3 -A 172.17.44.145";
 ###########################################################################  
   
 GetOptions(  
@@ -1542,7 +1553,7 @@ sub main {
       print current_time_us() . " Drpping app user on the orig master..\n";  
 ###########################################################################  
       #FIXME_xxx_drop_app_user($orig_master_handler);  
-###############################~~~~############################################  
+###########################################################################  
       ## Waiting for N * 100 milliseconds so that current connections can exit  
       my $time_until_read_only = 15;  
       $_tstart = [gettimeofday];  
@@ -1596,6 +1607,7 @@ sub main {
 ###########################################################################  
       print "disable the VIP on old master: $orig_master_host \n";  
       &stop_vip();  
+      &start_arp();
 ###########################################################################  
       ## Terminating all threads  
       print current_time_us() . " Killing all application threads..\n";  
@@ -1663,7 +1675,10 @@ sub start_vip() {
 sub stop_vip() {  
     `ssh $orig_master_ssh_user\@$orig_master_host \" $ssh_stop_vip \"`;  
 }  
-###########################################################################  
+sub start_arp() {
+    `ssh $new_master_ssh_user\@$new_master_host \" $ssh_Bcast_arp \"`;
+}
+###########################################################################    
 sub usage {  
   print  
 "Usage: master_ip_online_change --command=start|stop|status --orig_master_host=host --orig_master_ip=ip --orig_master_port=port --new_master_host=host --new_master_ip=ip --new_master_port=port\n";  
